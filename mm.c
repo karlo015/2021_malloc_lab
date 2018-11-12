@@ -25,7 +25,7 @@
  ********************************************************/
 team_t team = {
     /* Team name */
-    "FlipFlopOlympians",
+    "FlipFlopOlympians!!!!!!",
     /* First member's full name */
     "Nick Karlovich",
     /* First member's email address */
