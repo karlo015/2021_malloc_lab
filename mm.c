@@ -25,7 +25,7 @@
  ********************************************************/
 team_t team = {
     /* Team name */
-    "FlipFlopOlympians!!!!!!",
+    "FlipFlopOlympians",
     /* First member's full name */
     "Nick Karlovich",
     /* First member's email address */
@@ -71,7 +71,7 @@ team_t team = {
 /* Given block ptr bp, (not the header the bit after header before data)
         return the pointer that is in the first bit of data, ie when the
         block is free return a pointer */
-#define NEXT_BLKP_BY_PTR(bp) (char *)GET(bp)
+#define NEXT_NODE(bp) (char *)GET(bp)
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
@@ -131,7 +131,7 @@ int mm_check(int verbose);
 static void add_node(size_t size, void *p);
 static void remove_node(size_t size, void *p);
 
-static int debug = 0;
+static int debug = 1;
 //static char *brk;
 
 
@@ -215,7 +215,7 @@ int mm_init(void)
 
 
     //if(debug) {
-        printf("TEST 1: \n");
+        //printf("TEST 1: \n");
         add_node(3488, NULL);
         /*
         printf("TEST 2: \n");
@@ -276,12 +276,15 @@ static int do_arith(size_t size) {
 
 }
 
-static void add_node(size_t size, void *p) {
+//p is a block pointer
+// this function adds free blocks to their class lists
+static void add_node(size_t size, void *bp) {
 
     void *ptr = NULL;
 
     int size_class = 0;
 
+    // this statement determines what size class the node fits in.
     switch (size) {
 
         case 1:
@@ -319,32 +322,53 @@ static void add_node(size_t size, void *p) {
         size_class = 7 + do_arith(size);
 
     }
-    printf("size class: %d\n",size_class);
+    //printf("size class: %d\n",size_class);
     //printf("size of scp_1 %d\n",sizeof(scp_1));
 
+    //this line gets the root sizeclass node created and malloc and returns a pointer
+    //to the front of the pointer inside that bit.
     ptr = (void *)((scp_1 + (sizeof(scp_1) * 4 * size_class)) + WSIZE);
     /* ptr now points as such
 
     +-----------------------------------+
-    | HEADER STUFF                      |
+    | HEADER STUFF    (of size class x) |
     +-----------------------------------+  <--- ptr
     |Pointer to next node in class size |
     +-----------------------------------+
     |          FOOTER STUFF             |
     +-----------------------------------+
     */
-    printf("head: %p\n", heap_listp);
-    printf("void boi: %p\n", ptr);
-    mm_check(1);
+    //printf("head: %p\n", heap_listp);
+    //printf("void boi: %p\n", ptr);
+    //mm_check(1);
     /*
-        determine what size class the new block should go into
+        determine what size class the new block should go into         DONE
 
         add it to that size class by ...
-        taking that block, setting the pointer spc_# to *p
+        taking that block, setting the pointer spc_# to *p             DONE
         and setting *p's next block in list pointer to what spc_# was
         previously looking at.
     */
-    printf("GET: %ld\n",GET(ptr));
+
+    //if the root node is looking at nothing then make what it is currently looking at
+    //the node that was added.
+    if(NEXT_NODE(ptr) == NULL) {
+      PUT(ptr, (char *)bp);
+    } else {
+      //[ root ] ->   [1st element]
+      //get what root is pointing at.
+      void *first = NEXT_NODE(ptr);
+      //set what root is pointing at to the pointer inside the block we have
+      void *valptr = bp + WSIZE;
+      //valptr now points at the first value in the block
+      PUT(valptr,(char *) first);
+      //we have now set the first variable in bp to the address that the root pointer
+      //originally pointed to.
+      //set what root is pointing at to the block we have
+      PUT(ptr,(char *)bp);
+    }
+
+    //printf("GET: %ld\n",GET(ptr));
 
 }
 
@@ -382,7 +406,7 @@ void *mm_malloc(size_t size)
             printf("found w/out extending\n");
         }
     	place(bp, asize);
-        mm_check(debug);
+        //mm_check(debug);
     	return bp;
     }
 
@@ -407,7 +431,7 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
-
+    
 }
 
 /*
@@ -549,14 +573,14 @@ static void *find_fit(size_t asize) {
             //list begin  offset by each ptr   prologue   begin header
         //bp is now pointed at scp_1 at where it is right in front of the value pointer.
         void *next;
-        next = NEXT_BLKP_BY_PTR(bp);
+        next = NEXT_NODE(bp);
         while(next != 0) {//if the block isn't null
             int b_size = GET_SIZE(HDRP(next));
             int b_aloc = GET_ALLOC(HDRP(next));
             if(!b_aloc && b_size >= asize) {
                 return next;
             }
-            next = NEXT_BLKP_BY_PTR(next);
+            next = NEXT_NODE(next);
         }
     /* if it reaches this bit of the loop that means that it couldn't find a block of that size class
     so it will now begin to look in the next class */
