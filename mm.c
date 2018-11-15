@@ -96,7 +96,7 @@ the number of pointers here that need to have space allocated
 for them on the stack on heap initialization.
 */
 
-static int num_of_size_class_p = 19;
+static int num_of_size_class_p = 24;
 
 static char *scp_1;
 static char *scp_2;
@@ -117,6 +117,11 @@ static char *scp_2k_4k;// 2048 - 4095
 static char *scp_4k_8k;//4096 - 8191
 static char *scp_8k_16k;//8192 - 16383
 static char *scp_16k_32k;//16384 - 32767
+static char *scp_32k_64k;
+static char *scp_64k_128k;
+static char *scp_128k_256k;
+static char *scp_256k_512k;
+static char *scp_512k_1m;
 
 
 static void *extend_heap(size_t words);
@@ -252,13 +257,13 @@ int mm_init(void)
 
     mm_check(debug);
     printf("\n%p heap_listp, heap_list + WSIZE: %p\n",heap_listp, heap_listp + WSIZE);
-    for(char* i = heap_listp + WSIZE; i < heap_listp + 600; i = i + 8) {
+    for(char* i = heap_listp + WSIZE; i < heap_listp + (4 * num_of_size_class_p * 8) - 8; i = i + 8) {
         printf("p: %p\n",i);
         PUT(i,0);
         count++;
     }
-    PUT(heap_listp + WSIZE, PACK(608,1));       //start of root index's
-    PUT(heap_listp + 608, PACK(608,1));         //end of roots index's
+    PUT(heap_listp + WSIZE, PACK((4 * num_of_size_class_p * 8),1));       //start of root index's
+    PUT(heap_listp + (4 * num_of_size_class_p * 8), PACK((4 * num_of_size_class_p * 8),1));         //end of roots index's
     printf("Counter: %d\n", count);
     mm_check(debug);
 
@@ -283,6 +288,11 @@ int mm_init(void)
     scp_4k_8k = heap_listp + 32 * 16 + DSIZE;
     scp_8k_16k = heap_listp + 32 * 17 + DSIZE;
     scp_16k_32k = heap_listp + 32 * 18 + DSIZE;
+    scp_32k_64k = heap_listp + 32 * 19 + DSIZE;
+    scp_64k_128k = heap_listp + 32 * 20 + DSIZE;
+    scp_128k_256k = heap_listp + 32 * 21 + DSIZE;
+    scp_256k_512k = heap_listp + 32 * 22 + DSIZE;
+    scp_512k_1m = heap_listp + 32 * 23 + DSIZE;
 
 
 
@@ -829,7 +839,7 @@ static void *find_fit(size_t asize) {
     printf("P: %p, size_class: %ld, asize: %ld\n",p,size_class,asize);
     //if there is no list with a size big enough for the block
     if(size_class >= num_of_size_class_p) {
-      printf("OFF THE DEEPEND?---------------------------------------------\n");
+      printf("OFF THE DEEP END?---------------------------------------------\n");
       return NULL;
     } else {
       //as of right now p either equals a pointer to a root's first variable or its at the end
