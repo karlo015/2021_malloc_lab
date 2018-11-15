@@ -59,6 +59,7 @@ team_t team = {
    GET_SIZE returns size of entire block including header and footer  */
 #define GET_SIZE(p) (GET(p) & ~0x7)
 #define GET_ALLOC(p) (GET(p) & 0x1)
+#define GET_NULL(p) (((GET(p) & 0x2)) >> 1)
 
 /* Given block ptr bp, compute address of its header and footer */
 #define HDRP(bp) ((char *)(bp) - WSIZE)
@@ -67,7 +68,6 @@ team_t team = {
 /* Given block ptr bp, compute address of next and previous blocks */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
-
 /* Given block ptr bp, (not the header the bit after header before data)
         return the pointer that is in the first bit of data, ie when the
         block is free return a pointer */
@@ -75,17 +75,14 @@ team_t team = {
 #define NEXT_NODE(bp) ((char *)GET(bp))
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
-
 static char *heap_listp;
 #ifdef NEXT_FIT
 static char *rover;
 #endif
-
 /*
    Size Class Pointers
    These are measuring in WSIZE so
    scp_1 is a 1 word block of 8 bytes
-
    the struct itself is just a pointer to the first instance of such a block in the heap
 */
 
@@ -183,6 +180,7 @@ int mm_init(void)
     PUT(heap_listp, 0);
     PUT(heap_listp + WSIZE, PACK(OVERHEAD, 1)); //prologue header
     PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1)); //prologue footer
+    printf("\n%p heap_listp, heap_list + WSIZE: %p\n",heap_listp, heap_listp + WSIZE);
     PUT(heap_listp + WSIZE + DSIZE, PACK(0,1)); //epilogue header
     heap_listp += DSIZE;
 
@@ -246,54 +244,48 @@ int mm_init(void)
     */
     //printf("BEFORE FIRST EXTEND\n");
   //  mm_check(debug);
-    extend_heap(num_of_size_class_p * 4);
+  int count = 0;
+  mm_check(debug);
+    extend_heap(num_of_size_class_p * 4);//76 blocks
+
     //printf("AFTER FIRST EXTEND\n");
-    //mm_check(debug);
+
+    mm_check(debug);
+    printf("\n%p heap_listp, heap_list + WSIZE: %p\n",heap_listp, heap_listp + WSIZE);
+    for(char* i = heap_listp + WSIZE; i < heap_listp + 600; i = i + 8) {
+        printf("p: %p\n",i);
+        PUT(i,0);
+        count++;
+    }
     PUT(heap_listp + WSIZE, PACK(608,1));       //start of root index's
-    PUT(heap_listp + 608, PACK(608,1)); //end of roots index's
+    PUT(heap_listp + 608, PACK(608,1));         //end of roots index's
+    printf("Counter: %d\n", count);
+    mm_check(debug);
 
     //printf("heap high, heap low? BEFORE : %d,   %d\n",mem_heap_hi(), mem_heap_lo());
     printf("\n%p heap_listp, heap_list + WSIZE: %p\n",heap_listp, heap_listp + WSIZE);
-    scp_1 = heap_listp + 32 * 0 + WSIZE;
-
-    scp_2 = heap_listp + 32 * 1 + WSIZE;
-
-    scp_3 = heap_listp + 32 * 2 + WSIZE;
-
-    scp_4 = heap_listp + 32 * 3 + WSIZE;
-
-    scp_5 = heap_listp + 32 * 4 + WSIZE;
-
-    scp_6 = heap_listp + 32 * 5 + WSIZE;
-
-    scp_7 = heap_listp + 32 * 6 + WSIZE;
-
-    scp_8_15 = heap_listp + 32* 7 + WSIZE;
-
-    scp_16_31 = heap_listp + 32 * 8 + WSIZE;
-
-    scp_32_63 = heap_listp + 32 * 9 + WSIZE;
-
-    scp_64_127 = heap_listp + 32 * 10 + WSIZE;
-
-    scp_128_255 = heap_listp + 32 * 11 + WSIZE;
-
-    scp_256_511 = heap_listp + 32 * 12 + WSIZE;
-
-    scp_512_1k = heap_listp + 32 * 13 + WSIZE;
-
-    scp_1k_2k = heap_listp + 32 * 14 + WSIZE;
-
-    scp_2k_4k = heap_listp + 32 * 15 + WSIZE;
-
-    scp_4k_8k = heap_listp + 32 * 16 + WSIZE;
-
-    scp_8k_16k = heap_listp + 32 * 17 + WSIZE;
-
-    scp_16k_32k = heap_listp + 32 * 18 + WSIZE;
+    scp_1 = heap_listp + 32 * 0 + DSIZE;
+    scp_2 = heap_listp + 32 * 1 + DSIZE;
+    scp_3 = heap_listp + 32 * 2 + DSIZE;
+    scp_4 = heap_listp + 32 * 3 + DSIZE;
+    scp_5 = heap_listp + 32 * 4 + DSIZE;
+    scp_6 = heap_listp + 32 * 5 + DSIZE;
+    scp_7 = heap_listp + 32 * 6 + DSIZE;
+    scp_8_15 = heap_listp + 32* 7 + DSIZE;
+    scp_16_31 = heap_listp + 32 * 8 + DSIZE;
+    scp_32_63 = heap_listp + 32 * 9 + DSIZE;
+    scp_64_127 = heap_listp + 32 * 10 + DSIZE;
+    scp_128_255 = heap_listp + 32 * 11 + DSIZE;
+    scp_256_511 = heap_listp + 32 * 12 + DSIZE;
+    scp_512_1k = heap_listp + 32 * 13 + DSIZE;
+    scp_1k_2k = heap_listp + 32 * 14 + DSIZE;
+    scp_2k_4k = heap_listp + 32 * 15 + DSIZE;
+    scp_4k_8k = heap_listp + 32 * 16 + DSIZE;
+    scp_8k_16k = heap_listp + 32 * 17 + DSIZE;
+    scp_16k_32k = heap_listp + 32 * 18 + DSIZE;
 
 
-/*
+
 
 printf("\nscp_1: %p\n heap_listp : %p \n",scp_1, heap_listp);
     printf("\nscp_2: %p\n",scp_2);
@@ -314,7 +306,7 @@ printf("\nscp_1: %p\n heap_listp : %p \n",scp_1, heap_listp);
       printf("\nscp_4k: %p\n",scp_4k_8k);
       printf("\nscp_8k: %p\n",scp_8k_16k);
       printf("\nscp_16k: %p\n",scp_16k_32k);
-*/
+
 
 
 
@@ -622,7 +614,11 @@ void mm_free(void *ptr)
 
   PUT(HDRP(ptr), PACK(size,0));
   PUT(FTRP(ptr), PACK(size,0));
-  size = GET_SIZE(HDRP(ptr));
+
+  //to clear up first 8 bytes of free'd block so that a pointer can be set there,
+  //while also keeping it null for when added to class list
+  PUT(ptr,0);
+  //size = GET_SIZE(HDRP(ptr));
   add_node_to_root(size, ptr);
   printf("Free mm_check \n");
   mm_check(debug);
@@ -745,20 +741,22 @@ static void place(void *bp, size_t asize) {
         //since coalesce in this context is pointless. TODO: more efficient
         PUT(HDRP(bp), PACK((change_size), 0));
         PUT(FTRP(bp), PACK((change_size), 0));
-        //mm_free(bp);
-        void *ptr = bp;
-        //ptr = coalesce(ptr);
-        int size = GET_SIZE(HDRP(ptr));
-        printf("PLACE: Size of free'd block: %d\n", size);
 
-        PUT(HDRP(ptr), PACK(size,0));
-        PUT(FTRP(ptr), PACK(size,0));
-        size = GET_SIZE(HDRP(ptr));
-        add_node_to_root(size, ptr);
+        //this is to open up first 8 bytes so that free block points to null
+        PUT(bp,0);
+
+        //mm_free(bp);
+        //void *ptr = bp;
+        //ptr = coalesce(ptr);
+        //int size = GET_SIZE(HDRP(ptr));
+        printf("PLACE: Size of free'd block: %d\n", change_size);
+        // PUT(HDRP(ptr), PACK(size,0));
+        // PUT(FTRP(ptr), PACK(size,0));
+        // size = GET_SIZE(HDRP(ptr));
+        add_node_to_root(change_size, bp);
         printf("PLACE: mm_check \n");
         mm_check(debug);
         //replaced by free(bp);
-
     } else {
       printf("THIS GOES FOR the 48?\n");
         PUT(HDRP(bp), PACK(csize, 1));
@@ -790,13 +788,39 @@ static void *find_fit(size_t asize) {
     /*Segregated Class List */
       void *p;
 
+      // static int is_root_list_empty(void *root) {
+      //   void *a = next_node(root);
+      //   //char *a = ((char *)(GET(NEXT_NODE(root))));
+      //   if(a == NULL) {
+      //     return 1;
+      //   } else {
+      //     return 0;
+      //   }
+      // }
+
     size_t size_class = get_size_class(asize);
     //printf("segregate class list getsize_class size_class: %ld, size: %ld\n",size_class, asize);
     p = (void *)(get_root(size_class));
-    while((is_root_list_empty(p)) && (size_class < num_of_size_class_p)) {
-      size_class = size_class + 1;
-      p = (void *)(get_root(size_class));
+    for(; size_class < num_of_size_class_p;) {
+        //if there exists a next node in the linked list at a given root
+        if(p != NULL) {
+            while(next_node(p) != NULL) {
+                p = (void *)(NEXT_NODE(p));
+                if(GET_SIZE(HDRP(p)) >= asize) {
+                    return p;
+                }
+            }
+        }
+        size_class++;
+        p = (void*)(get_root(size_class));
     }
+
+    // while((is_root_list_empty(p)) && (size_class < num_of_size_class_p)) {
+    //   size_class = size_class + 1;
+    //   p = (void *)(get_root(size_class));
+    // }
+
+
     if(is_root_list_empty(p)) {
       printf("class %d empty so we need to go on\n",size_class);
     } else {
