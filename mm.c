@@ -44,7 +44,7 @@ team_t team = {
 
 #define WSIZE 8
 #define DSIZE 16
-#define CHUNKSIZE (1<<12)
+#define CHUNKSIZE (1<<10)
 #define OVERHEAD 16
 
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
@@ -97,9 +97,9 @@ for them on the stack on heap initialization.
 */
 static int num_of_size_class_p = 34;
 
-static char *scp_1;
-static char *scp_2;
-static char *scp_3;
+static char *scp_1;//32
+static char *scp_2;//48
+static char *scp_3;//64
 static char *scp_4;
 static char *scp_5;
 static char *scp_6;
@@ -132,6 +132,8 @@ static char *scp_128m_256m;
 static char *scp_256m_512m;
 static char *scp_512m_1g;//34
 
+static void *heap_end;
+
 
 static void *extend_heap(size_t words);
 static void place(void *bp, size_t asize);
@@ -149,8 +151,12 @@ static void *next_node(void *bp);
 static void *get_node_address(void *cp);
 static void *findFreeNode(size_t size, void *in_stack);
 static void printSeglist(size_t class_size);
+static void printAllSeglists();
+static void zeroSizeSet(void *bp);
 
-static int debug = 1;
+static int debug = 0;
+static int extend_coalesce_tag = 0;
+static void *lastNodeUsed;
 //static char *brk;
 
 
@@ -190,8 +196,8 @@ Free Blocks
  * mm_init - initialize the malloc package.
  */
  // ----THIS FUNCTION HAS BEEN CHECKED----
-int mm_init(void)
-{
+int mm_init(void) {
+    //printf("init\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     if((heap_listp = mem_sbrk(4 * WSIZE)) == NULL) {
         return -1;
     }
@@ -201,7 +207,7 @@ int mm_init(void)
     ////printf("\n%p heap_listp, heap_list + WSIZE: %p\n",heap_listp, heap_listp + WSIZE);
     PUT(heap_listp + WSIZE + DSIZE, PACK(0,1)); //epilogue header
     heap_listp += DSIZE;
-
+    heap_end = heap_listp + WSIZE + DSIZE;
   scp_1 = heap_listp + 32 * 0 + DSIZE;
   /*scp_2 = heap_listp + 32 * 1 + DSIZE;
   scp_3 = heap_listp + 32 * 2 + DSIZE;
@@ -239,12 +245,15 @@ int mm_init(void)
 
   int count = 0;
   ///mm_check(debug);
-    void *temp = extend_heap(num_of_size_class_p * 4);//76 blocks
-    remove_node(num_of_size_class_p * 4 * 8, temp);
+    extend_coalesce_tag = 1;
+    void *temp = extend_heap(num_of_size_class_p + 2);//34 for pointers and 2, one for each header
+    extend_coalesce_tag = 0;
+    //remove_node((num_of_size_class_p + 2) * 8, temp);
 
-    memset(heap_listp + WSIZE  + 1, 0, 4 * num_of_size_class_p * 8);
-    PUT(heap_listp + WSIZE, PACK((4 * num_of_size_class_p * 8),1));       //start of root index's
-    PUT(heap_listp + (4 * num_of_size_class_p * 8), PACK((4 * num_of_size_class_p * 8),1));         //end of roots index's
+
+    memset(heap_listp + WSIZE  + 1, 0,(2 + num_of_size_class_p) * 8);
+    PUT(heap_listp + WSIZE, PACK(((2 + num_of_size_class_p) * 8),1));       //start of root index's
+    PUT(heap_listp + ((2 + num_of_size_class_p) * 8), PACK( ( (2 + num_of_size_class_p) * 8) , 1 ) );         //end of roots index's
 
 /*
 printf("\nscp_1: %p\n heap_listp : %p \n",scp_1, heap_listp);
@@ -269,7 +278,6 @@ printf("\nscp_1: %p\n heap_listp : %p \n",scp_1, heap_listp);
 */
 
 
-
     if(extend_heap(CHUNKSIZE/WSIZE) == NULL) {
         ///printf("extend_heap == null in init:\n");
         return -1;
@@ -277,6 +285,10 @@ printf("\nscp_1: %p\n heap_listp : %p \n",scp_1, heap_listp);
         if(debug) {
          //   printf("HEAP EXTENDED\n");
         }
+    }
+    if(debug) {
+        printf("Chunksize: %ld\n",CHUNKSIZE);
+        mm_check(1);
     }
 
 
@@ -300,6 +312,10 @@ static size_t do_arith(size_t size) {
         counter++;
     }
     if(num == 0) {
+//        if(size < 8) {
+    //        zeroSizeSet(scp_1);
+    //        printf("original size is %d\n",size);
+    //    }
         printf("something went wrong\n");
         return -1;
     } else {
@@ -317,6 +333,10 @@ static void remove_node(size_t size, void *bp) {
   size_t abc = get_size_class(size);
   //printSeglist(abc);
   ptr = get_root(abc);
+  if(debug) {
+      printf("[R][BEFORE]  ",abc);
+      printSeglist(abc);
+  }
   void *prev = ptr;
   int end = 0;
   if(ptr != NULL) {
@@ -325,13 +345,14 @@ static void remove_node(size_t size, void *bp) {
           if(next_node(ptr) == bp){
               prev = ptr;
               ptr = next_node(ptr);
-              /*if(next_node(ptr) == NULL) {
-                  secNodeAddress = 0;
-              } else {
-                  secNodeAddress = get_node_address(next_node(ptr));
-              }*/
               secNodeAddress = GET(ptr);
-              //printf("secnod %p\n",secNodeAddress);
+
+
+
+              //lastNodeUsed = bp;
+
+
+
               PUT(prev, secNodeAddress);
               end = 1;
           } else {
@@ -345,26 +366,22 @@ static void remove_node(size_t size, void *bp) {
       //printf("last node in list\n");
   }
   if(ptr == NULL) {
-      //printf("Item not found");
+      printf("Item not found");
+      zeroSizeSet(bp);
   }
-  //void *head = HDRP(ptr);
-  //we have the root pointer
-  //next we need to get the pointer of the 1st non root element
-  //then we need to set 2nd item in root class to be the second one.
-  //secNodeAddress = next_node(ptr);
-	//printf("sec'%p' size: %ld, bp: %p abc: %ld\n",secNodeAddress, size, bp, abc);
-  //secNodeAddress = get_node_address(secNodeAddress);
-  //secNodeAddress = (char *)((GET(NEXT_NODE(ptr))));
-  //PUT(ptr, secNodeAddress);
-  //printf("removed free node of %ld from size class %ld\n",size,abc);
-  //mm_check(1);
-  //printSeglist(abc);
-  //printf("remove end\n");
+  if(debug) {
+      printf("[R][AFTER]  ",abc);
+      printSeglist(abc);
+      printf("removed free node of %ld from size class %ld\n",size,abc);
+      mm_check(1);
+  }
 }
 
 // ----THIS FUNCTION HAS BEEN CHECKED----
 static size_t get_size_class(size_t b_size) {
   size_t size_class = b_size;
+  b_size = b_size >> 4;
+  b_size = b_size - 1;
   switch (b_size) {
       case 1:
       size_class = 0;
@@ -403,7 +420,7 @@ static size_t get_size_class(size_t b_size) {
 //returns pointer to first value of root block
 // ----THIS FUNCTION HAS BEEN CHECKED----
 static void *get_root(size_t size_class) {
-  return ((void *)((scp_1 + (sizeof(scp_1) * 4 * size_class))));
+  return ((void *)((scp_1 + (sizeof(scp_1) * size_class))));
 }
 
 // ----THIS FUNCTION HAS BEEN CHECKED----
@@ -436,8 +453,19 @@ static int is_root_list_empty(void *root) {
     return 0;
   }
 }
+
 // ----THIS FUNCTION HAS BEEN CHECKED----
 static void add_node(void *root, void *bp) {
+    if(debug) {
+        printf("[A][BEFORE] ");
+        printSeglist(get_size_class(GET_SIZE(HDRP(bp))));
+    }
+    /*if(bp == lastNodeUsed) {
+        printf("HELLO THAT WAS JUST UESD!");
+        zeroSizeSet(bp);
+    }*/
+    //lastNodeUsed = bp;
+
     //printf("Add begin\n");
     //printSeglist(get_size_class(GET_SIZE(HDRP(bp))));
   void *first = next_node(root);
@@ -449,8 +477,10 @@ static void add_node(void *root, void *bp) {
   //originally pointed to.
   //set what root is pointing at to the block we have
   PUT(root,bp);
-  //printSeglist(get_size_class(GET_SIZE(HDRP(bp))));
-  //printf("Add end\n");
+  if(debug) {
+      printf("[A][AFTER] ");
+      printSeglist(get_size_class(GET_SIZE(HDRP(bp))));
+  }
 }
 
 
@@ -458,7 +488,6 @@ static void add_node(void *root, void *bp) {
 /* p is a block pointer
  * this function adds free blocks to their class lists
  */
- // ----THIS FUNCTION HAS BEEN CHECKED----
 static void add_node_to_root(size_t size, void *bp) {
   void *root = NULL;
   size_t size_class = 0;
@@ -466,72 +495,10 @@ static void add_node_to_root(size_t size, void *bp) {
   //moved to get_size_class
   //printf("SIZE OF NODE BEING ADDED: %ld\n",size);
   size_class = get_size_class(size);
-  //printf("size class: %ld\n", size_class);
-  //printf("size class: %d\n",size_class);
-  //printf("size of scp_1 %d\n",sizeof(scp_1));
 
-  //this line gets the root sizeclass node created and malloc and returns a pointer
-  //to the front of the pointer inside that bit.
   root = get_root(size_class);
-  //replaced by get_root(size_class);
-  //ptr = (void *)((scp_1 + (sizeof(scp_1) * 4 * size_class)) + WSIZE);
-  /* ptr now points as such
 
-  +-----------------------------------+
-  | HEADER STUFF    (of size class x) |
-  +-----------------------------------+  <--- ptr
-  |Pointer to next node in class size |
-  +-----------------------------------+
-  |          FOOTER STUFF             |
-  +-----------------------------------+
-  */
-  //printf("head: %p\n", heap_listp);
-  //printf("void boi: %p\n", ptr);
-  //
-  //mm_check(1);
-  /*
-      determine what size class the new block should go into         DONE
 
-      add it to that size class by ...
-      taking that block, setting the pointer spc_# to *p             DONE
-      and setting *p's next block in list pointer to what spc_# was  DONE
-      previously looking at.
-  */
-
-  //if the root node is looking at nothing then make what it is currently looking at
-  //the node that was added.
-
-  /*
-
-  The problem I'm currently running into is that
-  my root list only can hold one element, ie it doesn't continue to search the list
-  of elements that I've created so in the example currently there is a free block
-  sized 2128 in size class 15 the same as the mm_malloc() request of 4096,  Thus the program
-  tries to use the size 2128 block of free'd data its locaiton for a block of 4096 data which
-  wont work.  SO
-  TO FIX THIS:
-  currently it just checks if a pointer exists,
-    ->> it needs to check if pointer exists, then if the block that exists is a size >= to the block
-    that is being malloc'd.  If as in our example the block in the list is say 2128 but we want 4096,
-    then the next step is to have the ptr look and see if the (1st) block has a pointer to a Second
-    block in that size class if it does then go to that one and repeat, if it doesn't, then go to
-    the next biggest size class.  There is the posibility of sorting such values as they are added
-    to the root list but thats a feature for later
-
-  if(size_class has a block) {
-      if(that block the correct size) {
-        perfect! we're done
-      } else {
-          if(does that block have a pointer to next block?) {
-            YES: go to that block and repeat previous steps
-          } else {
-            NO: end of list, go to next root class
-          }
-      }
-  } else {
-    Go to next root block
-}
-  */
   //ifthe root list is empty
   //if root list is empty return 1, thus when root list is empty it will go to else
   if(is_root_list_empty(root)) {
@@ -559,32 +526,26 @@ static void add_node_to_root(size_t size, void *bp) {
 				//next = next_node(next);
 				//printf("nexxt: %p, prev: %p\n",next,prev);
 			}
-			next = next_node(next);
+            next = GET(next);
+			//next = next_node(next);
 			//printf("nexxt: %p, prev: %p\n",next,prev);
 		}
 		c++;
-	} while(next != NULL && found == 0 && c < 100);
-
+	} while(next != NULL && found == 0 /*&& c < 100*/);
+    if(c > 25 && debug) {
+        printf("List is ths long %d, size_class: %d, \n",c, size_class);
+        printSeglist(size_class);
+        mm_check(1);
+    }
 	if(found == 0) {
 		add_node(prev,bp);
 	}
 
-    // //[ root ] ->   [1st element]
-    // //get what root is pointing at.
-    // void *first = NEXT_NODE(ptr);
-    // //set what root is pointing at to the pointer inside the block we have
-    // void *valptr = bp + WSIZE;
-    // //valptr now points at the first value in the block
-    // PUT(valptr,(char *) first);
-    // //we have now set the first variable in bp to the address that the root pointer
-    // //originally pointed to.
-    // //set what root is pointing at to the block we have
-    // PUT(ptr,(char *)bp);
-
-    //add_node(ptr,bp);
   }
-  //mm_check(1);
-  printf("added free node of %ld to size class %ld\n",size ,size_class);
+  if(debug) {
+      printf("added free node of %ld to size class %ld\n",size ,size_class);
+      mm_check(1);
+    }
   //printf("GET: %ld\n",GET(ptr));
 }
 
@@ -594,12 +555,15 @@ static void add_node_to_root(size_t size, void *bp) {
  * multiple in this context means 1 block or 8 bytes, our size class is still 1 block ie
  * 8 bytes, 2 block is 16 bytes + OVERHEAD
  */
-// ----THIS FUNCTION HAS BEEN CHECKED----
+// ----THIS FUNCTION HAS BEEN CHECKED----f
 void *mm_malloc(size_t size) {
     size_t asize;      /* adjusted block size */
     size_t extendsize; /* amount to extend heap if no fit */
     char *bp;
-
+    if(debug) {
+        printf("start of malloc:\n");
+        mm_check(1);
+    }
     /* Ignore spurious requests */
     if (size <= 0) {
 	   return NULL;
@@ -611,12 +575,16 @@ void *mm_malloc(size_t size) {
     } else {
 	   asize = DSIZE * ((size + (OVERHEAD) + (DSIZE-1)) / DSIZE);
     }
+    if(debug) {
+        printf("malloc called with input size: %ld, and alignedSize: %ld \n",size, asize);
+    }
     //printf("Malloc Check\n");
     //mm_check(debug);
 
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
     	place(bp, asize);
+        //printAllSeglists();
     	return bp;
     }
 
@@ -629,6 +597,7 @@ void *mm_malloc(size_t size) {
     place(bp, asize);
    // printf("\n Malloc mm_check \n");
     //mm_check(debug);
+    //printAllSeglists();
     return bp;
 }
 
@@ -637,39 +606,57 @@ void *mm_malloc(size_t size) {
  */
  // ----THIS FUNCTION HAS BEEN CHECKED----
 void mm_free(void *ptr) {
+    //printf("FREE \n\n\n\n\n\n\n\n\n\n\n");
+    if(GET_SIZE(HDRP(ptr)) >= 2000)
+        //printAllSeglists();
+    if(debug) {
+        printf("free start:\n");
+        mm_check(1);
+      printf("Size of org free block: %d, and pointer: %p\n",GET_SIZE(HDRP(ptr)), ptr);
+  }
+  //void *orig = ptr;
   ptr = coalesce(ptr);
   int size = GET_SIZE(HDRP(ptr));
- // printf("Size of free'd block: %d\n", size);
 
-  ///PUT(HDRP(ptr), PACK(size,0));
-  //PUT(FTRP(ptr), PACK(size,0));
+  if(debug) {
+      printf("Size of free'd block: %d ,freed block after coalesce %p\n", size, ptr);
+  }
 
   //to clear up first 8 bytes of free'd block so that a pointer can be set there,
   //while also keeping it null for when added to class list
   PUT(ptr,0);
-  //size = GET_SIZE(HDRP(ptr));
   add_node_to_root(size, ptr);
-  //printf("Free mm_check \n");
-  //mm_check(debug);
+
+  if(debug) {
+      printf("free done:\n");
+      mm_check(1);
+
+  }
+}
+
+static void zeroSizeSet(void *bp) {
+    printf("Something was just set as a zero size\n");
+    printf("bp: %p, bpsize: %ld\n",bp, GET_SIZE(HDRP(bp)));
 }
 
 /*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
- // ----THIS FUNCTION HAS BEEN CHECKED----
-void *mm_realloc(void *ptr, size_t size)
-{
-//printf("Realloc -----------\n");
-	mm_check(1);
+void *mm_realloc(void *ptr, size_t size) {
+    if(debug) {
+        printf("Realloc ---BEFORE CALL-----ptr[%p]-size[%ld]---\n",ptr, size);
+        mm_check(1);
+    }
+
 	if(ptr == NULL) {
 	//printf("PTR == NULL\n");
 		return mm_malloc(size);
 	} else if(size == 0) {
 		//printf("Size == 0\n");
+        //realloc_tag = 1;
 		mm_free(ptr);
+        //realloc_tag = 0;
 		return NULL;
-	} else {
-		//printf("Normal Case\n");
 	}
 	size_t originalSize = GET_SIZE(HDRP(ptr));
 	long ogSize2 = originalSize;
@@ -685,12 +672,15 @@ void *mm_realloc(void *ptr, size_t size)
 	} else {
 		copySize = DSIZE * ((size + (OVERHEAD) + (DSIZE - 1)) / DSIZE);
 	}
-
+    //printf("size: %ld, alginedSize(copySize): %ld\n",size, copySize);
 
 	spaceDifference = ogSize2 - copySize;
 	//if copySize > originalSize
 	//printf("SPACE DIFFERENCE: %ld\n", spaceDifference);
-	if(spaceDifference <= DSIZE + OVERHEAD) {
+    //if spaceDifference < 32 ie it can't be shortened
+    if(spaceDifference == 0) {
+        return ptr;
+    } else if(spaceDifference < DSIZE + OVERHEAD) {
 
 		//next block in list size
 		long nextBlockSize = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
@@ -708,7 +698,9 @@ void *mm_realloc(void *ptr, size_t size)
 
 			//if there is space
              // ----THIS FUNCTION HAS BEEN CHECKED----
+             //printf("remain!: %ld\n",remain);
 			if(remain >= DSIZE + OVERHEAD) {
+
 				remove_node(nextBlockSize,findFreeNode(nextBlockSize,nextBlockPointer));
 				PUT(HDRP(ptr), PACK(copySize,1));
 				PUT(FTRP(ptr), PACK(copySize,1));
@@ -728,40 +720,36 @@ void *mm_realloc(void *ptr, size_t size)
 		if(GET_SIZE(HDRP(NEXT_BLKP(ptr))) == 0) {
 			void *after_extend;
 			//printf("next block epilogue %d  remain: %ld, CHUNKSIZE %ld copysize %ld oggsize %d\n",size,remain, CHUNKSIZE, copySize, originalSize);
-			extend = MAX(-remain, CHUNKSIZE);
-			if((after_extend = extend_heap(extend)) == NULL) {
+            //extend = ((-remain)/WSIZE);
+			extend = MAX(((-remain/WSIZE)), CHUNKSIZE);
+            extend_coalesce_tag = 1;
+			if((after_extend = extend_heap(extend/WSIZE)) == NULL) {
 				//printf("end of heapp\n");
 				return NULL;
 			}
-            remove_node(extend, after_extend);
-			//printf("heap extended\n");
-			//PUT(HDRP(after_extend), PACK(extend, 0));
-			//PUT(FTRP(after_extend), PACK(extend, 0));
-			//PUT(after_extend,0);
-			//printf("before add to root\n");
-			//mm_check(1);
+            extend_coalesce_tag = 0;
+            //remove_node((extend), after_extend);
 			nextBlockSize = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
 			nextBlockPointer = NEXT_BLKP(ptr);
-			///printf("nBs %ld, nBp %p\n",nextBlockSize, nextBlockPointer);
-			//printf("ext %ld, aFe %p\n",extend, after_extend);
-			//add_node_to_root(nextBlockSize, nextBlockPointer);
-			//need to redefine these after extend_heap
-
-
-			//remove_node(nextBlockSize,findFreeNode(nextBlockSize,nextBlockPointer));
 			PUT(HDRP(ptr), PACK(copySize, 1));
 			PUT(FTRP(ptr), PACK(copySize, 1));
 			if(extend == CHUNKSIZE){
-				originalSize = originalSize + CHUNKSIZE - copySize;
+				originalSize = originalSize + (CHUNKSIZE) - copySize;
 				//printf("by chunksize ogsizeNew: %ld\n",originalSize);
 				//mm_check(1);
 				//nextBlockSize = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
 				nextBlockPointer = NEXT_BLKP(ptr);
+            //    if(originalSize < 32) {
+            //        zeroSizeSet(nextBlockPointer);
+            //    }
 				PUT(HDRP(nextBlockPointer), PACK(originalSize, 0));
 				PUT(FTRP(nextBlockPointer), PACK(originalSize, 0));
 				///printf("after pack origSize\n");
 				//mm_check(1);
 				PUT(nextBlockPointer,0);
+            //    printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
+            //    printf("realloc called exteneded\n");
+            //    printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
 				add_node_to_root(originalSize,nextBlockPointer);
 			} else {
 				//printf("by -remain\n");
@@ -782,10 +770,10 @@ void *mm_realloc(void *ptr, size_t size)
 
 		//if copySize < originalSize
     // ----THIS CASE HAS BEEN CHECKED----
-	} else {
+    } else {
 		//printf("new size smaller than original %d %d\n",size,copySize);
         remove_node(originalSize, ptr);
-		printf("%p ptr %p\n",HDRP(ptr),ptr);
+	//	printf("%p ptr %p\n",HDRP(ptr),ptr);
 		PUT(HDRP(ptr), PACK(copySize,1));
 		PUT(FTRP(ptr), PACK(copySize,1));
 		ptr = NEXT_BLKP(ptr);
@@ -797,21 +785,6 @@ void *mm_realloc(void *ptr, size_t size)
 	}
 
 
-	/*
-    newptr = mm_malloc(size);
-    if (newptr == NULL) {
-        return NULL;
-    }
-    //copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    copySize = GET_SIZE(HDRP(ptr));
-    //printf("ptr: %p, size: %ld GET_SIZE(HDRP(ptr)): %ld, copySize: %ld, newptr: %p\n",ptr, size, GET_SIZE(HDRP(ptr)), copySize, newptr);
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
-    */
-
 }
 
 /*
@@ -819,8 +792,7 @@ void *mm_realloc(void *ptr, size_t size)
  TODO: copied this, make it better
  */
  // ----THIS FUNCTION HAS BEEN CHECKED----
- int mm_check(int verbose)
- {
+ int mm_check(int verbose) {
      char *bp = heap_listp;
 
      if (verbose)
@@ -842,7 +814,9 @@ void *mm_realloc(void *ptr, size_t size)
      if (verbose)
  		printblock(bp);
      if ((GET_SIZE(HDRP(bp)) != 0) || !(GET_ALLOC(HDRP(bp)))) {
+
        printf("Bad epilogue header\n");
+       zeroSizeSet(bp);
        printf("%d ",GET_SIZE(HDRP(bp)));
        printf(" %d \n", GET_ALLOC(HDRP(bp)));
      }
@@ -855,24 +829,17 @@ void *mm_realloc(void *ptr, size_t size)
 static void *extend_heap(size_t words) {
     char *bp;
     size_t size;
-
     size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
-    //size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
-    // bp = mem_sbrk(size);
-    // if(bp == (void *)-1) {
-    //     return NULL;
-    // }
-
     if((bp = mem_sbrk(size)) == (void *)-1) {
         if(debug) {
-         //   printf("extend_heap failed\n");
+            printf("extend_heap failed\n");
         }
         return NULL;
     }
-
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1));
+    heap_end = NEXT_BLKP(bp);
     //a shortened coalesce to check backwards
     //if its not allocated then we can coalesce
     if(!GET_ALLOC(FTRP(PREV_BLKP(bp)))) {
@@ -881,11 +848,25 @@ static void *extend_heap(size_t words) {
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
+
     }
+    //if this add to root isn't useless
+    if(!extend_coalesce_tag) {
+        add_node_to_root(size,bp);
+    }
+
     PUT(bp,0);
-    add_node_to_root(size,bp);
+
     return bp;
 }
+
+
+/*
+248,251,252
+744, 749, 750
+
+
+*/
 
 // ----THIS FUNCTION HAS BEEN CHECKED----
 static void place(void *bp, size_t asize) {
@@ -909,11 +890,11 @@ static void place(void *bp, size_t asize) {
     stack utilization
 
 
+
     TODO: make this more efficient
     */
-    if((change_size) >= (DSIZE + OVERHEAD)) {
-    // // printf("not the 56\n");
-    //REMOVE NODE BP FROM ROOT
+    if((change_size) > (DSIZE + OVERHEAD)) {
+
         remove_node(csize, bp);
         PUT(HDRP(bp), PACK(asize,1));
         PUT(FTRP(bp), PACK(asize,1));
@@ -940,7 +921,6 @@ static void place(void *bp, size_t asize) {
         //mm_check(debug);
         //replaced by free(bp);
     } else {
-        //printf("THIS GOES FOR the 48?\n");
         remove_node(csize, bp);
         PUT(HDRP(bp), PACK(csize, 1));
         PUT(FTRP(bp), PACK(csize, 1));
@@ -980,7 +960,7 @@ static void *find_fit(size_t asize) {
       //printf("OFF THE DEEP END?---------------------------------------------\n");
       return NULL;
   } else {
-    printf("how did we get here?\n");
+//    printf("how did we get here?\n");
     return NULL;
   }
 
@@ -1002,43 +982,39 @@ static void printSeglist(size_t class_size) {
     printf("-------\n");
 }
 
- // ----THIS FUNCTION HAS BEEN CHECKED----
+static void printAllSeglists() {
+    for(int i = 0; i < num_of_size_class_p; i++) {
+        printSeglist(i);
+    }
+}
+
+
 static void *findFreeNode(size_t size, void *in_stack){
 	size_t look = get_size_class(size);
-    //printSeglist(look);
-    //printf("in_stack: %p\n",in_stack);
 	void *p = (void *)(get_root(look));
 	for(; look < num_of_size_class_p;) {
 		if(next_node(p) != NULL) {
 			while(next_node(p) != NULL && (GET_SIZE(HDRP(in_stack)) >= GET_SIZE(HDRP(next_node(p))))) {
 
 				if(p == in_stack) {
-					//printf("found p: %p, in_stack: %p\n", p, in_stack);
 					return p;
 				}
                 p = (void *)(next_node(p));
 			}
-		} else {
-            if(debug == 1) {
-                printf("findFreeNode list is empty\n");
-            }//list is empty
-        }
+		}
         if(p == in_stack) {
-            //printf("found p: %p, in_stack: %p\n", p, in_stack);
             return p;
         }
 		look++;
 		p = (void *)(get_root(look));
 	}
-	//printf("RETURNED NULL\n");
 	return NULL;
 }
 
-// ----THIS FUNCTION HAS BEEN CHECKED----
 static void *coalesce(void *bp) {
-
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+    size_t base_alloc = GET_ALLOC(HDRP(bp));
     size_t size = GET_SIZE(HDRP(bp));
     size_t next_size = GET_SIZE(HDRP(NEXT_BLKP(bp)));
     size_t prev_size = GET_SIZE(HDRP(PREV_BLKP(bp)));
@@ -1047,14 +1023,18 @@ static void *coalesce(void *bp) {
     	PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
     } else if(prev_alloc && !next_alloc) {
-        remove_node(size,bp);
+        if(!base_alloc) {
+            remove_node(size,bp);
+        }
         remove_node(next_size,NEXT_BLKP(bp));
         size += next_size;
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
     } else if(!prev_alloc && next_alloc) {
         remove_node(prev_size,PREV_BLKP(bp));
-        remove_node(size,bp);
+        if(!base_alloc) {
+            remove_node(size,bp);
+        }
         size += prev_size;
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
@@ -1062,7 +1042,9 @@ static void *coalesce(void *bp) {
     } else {
         remove_node(next_size,NEXT_BLKP(bp));
         remove_node(prev_size,PREV_BLKP(bp));
-        remove_node(size,bp);
+        if(!base_alloc) {
+            remove_node(size,bp);
+        }
         size += next_size + prev_size;
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
